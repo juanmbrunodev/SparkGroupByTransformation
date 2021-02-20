@@ -1,20 +1,19 @@
 package com.jmb;
 
-import org.apache.spark.api.java.function.ForeachPartitionFunction;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
+import com.jmb.mapper.AirportsMapGrouper;
+import org.apache.spark.api.java.function.MapFunction;
+import org.apache.spark.sql.*;
+import org.apache.spark.sql.catalyst.encoders.RowEncoder;
+import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.spark.sql.functions.col;
 
 
 public class DataGrouping {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DataGrouping.class);
     private static final String SPARK_FILES_FORMAT = "csv";
-    private static final String PATH_RESOURCES = "src/main/resources/spark-data/sales_information.csv";
+    private static final String PATH_RESOURCES = "src/main/resources/spark-data/airlines.csv";
 
     public static void main(String[] args) throws Exception {
 
@@ -40,19 +39,29 @@ public class DataGrouping {
         //Show first 5 records of the Raw ingested DataSet
         df.show(5);
 
+        //Group by Airport code and month, sum with aggregate function
+        Dataset<Row> groupedAirportsDf = df.groupBy(df.col("`Airport.Code`"), df.col("`Time.Month`"))
+                .agg(functions.sum("`Statistics.Flights.Total`"));
 
-        //Define a Spark based Partition function as a lambda
-        ForeachPartitionFunction<Row> fepf = (rowIterator) -> {
-         LOGGER.info("PARTITION CONTENTS: ");
-         while(rowIterator.hasNext()) {
-             LOGGER.info("ROW VALUE " + rowIterator.next().toString());
-         }
-        };
+        //Print the grouped partitions of the DataFrame
+        groupedAirportsDf.show(5);
 
-        //Execute the function on the DataFrame
-        df.foreachPartition(fepf);
+        //Filter out all flights except for the year 2005
+        Dataset<Row> filteredDf = df.filter(df.col("`Time.Label`").contains("2005"));
 
-        
+        //Print some rows to see filter applied
+        filteredDf.show(10);
+
+        int airportCodeRowIndex = 0;
+        KeyValueGroupedDataset keyValueGroupedDataset =
+                filteredDf.groupByKey((MapFunction<Row, String>) row -> row.getString(airportCodeRowIndex), Encoders.STRING());
+
+        Dataset<Row> summarisedResults = keyValueGroupedDataset.mapGroups(new AirportsMapGrouper(),
+                RowEncoder.apply(new StructType(AirportsMapGrouper.defineRowSchema())));
+
+        //Show the results
+        summarisedResults.show(10);
+
     }
 
 }
