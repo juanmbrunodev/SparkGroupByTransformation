@@ -8,6 +8,8 @@ import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Scanner;
+
 
 public class DataGrouping {
 
@@ -43,14 +45,23 @@ public class DataGrouping {
         Dataset<Row> groupedAirportsDf = df.groupBy(df.col("`Airport.Code`"), df.col("`Time.Month`"))
                 .agg(functions.sum("`Statistics.Flights.Total`"));
 
+        LOGGER.info("======== Input any non blank key and tap Enter to see results GroupBy ... ==========");
+        Scanner scan = new Scanner(System.in);
+        String s = scan.next();
+
         //Print the grouped partitions of the DataFrame
         groupedAirportsDf.show(5);
 
         //Filter out all flights except for the year 2005
         Dataset<Row> filteredDf = df.filter(df.col("`Time.Label`").contains("2005"));
 
+        LOGGER.info("======== Input any non blank key and tap Enter to see Filtered DataFrame ... ==========");
+        scan = new Scanner(System.in);
+        s = scan.next();
+
         //Print some rows to see filter applied
         filteredDf.show(10);
+
 
         int airportCodeRowIndex = 0;
         KeyValueGroupedDataset keyValueGroupedDataset =
@@ -58,6 +69,11 @@ public class DataGrouping {
 
         Dataset<Row> summarisedResults = keyValueGroupedDataset.mapGroups(new AirportsMapGrouper(),
                 RowEncoder.apply(new StructType(AirportsMapGrouper.defineRowSchema())));
+
+
+        LOGGER.info("======== Input any non blank key and tap Enter to see GroubByKey results ... ==========");
+        scan = new Scanner(System.in);
+        s = scan.next();
 
         //Show the results
         summarisedResults.show(10);
